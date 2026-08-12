@@ -17,6 +17,19 @@ conectados, sinal, tráfego, uptime).
 chamando a própria função de desenho do script, não uma foto da tela
 física).*
 
+## Validação
+
+Testado em 12/08/2026, depois de todas as mudanças (troca de papéis das
+interfaces incluída):
+
+- `hostapd`, `dnsmasq`, `wpa_supplicant` e `pcp-status-display.py` rodando
+  havia ~23 minutos sem reiniciar (mesmos PIDs desde o último boot, sem
+  crashes)
+- Cliente real conectado e estável durante todo o período
+- Sem erros nos logs — só eventos normais de conexão/associação
+- Teste de ponta a ponta (gateway do AP → internet via NAT): **0% de
+  perda de pacote**
+
 ## Hardware usado
 
 - Raspberry Pi 3 Model B
