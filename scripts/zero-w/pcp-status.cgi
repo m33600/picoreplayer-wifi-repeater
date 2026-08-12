@@ -76,7 +76,7 @@ h1 { color:#ffd633; font-size:1.3em; margin:0 0 4px 0; }
 .row { display:flex; align-items:center; gap:10px; margin:4px 0; flex-wrap:wrap; }
 .label { color:#999; min-width:110px; }
 .bar-wrap { display:inline-block; width:120px; height:12px; background:#222; border:1px solid #555; border-radius:3px; overflow:hidden; vertical-align:middle; }
-.bar-fill { height:100%; }
+.bar-fill { height:100%; display:block; }
 table { width:100%; border-collapse:collapse; margin-top:6px; }
 th, td { text-align:left; padding:6px 8px; font-size:0.9em; border-bottom:1px solid #2a2a4a; }
 th { color:#999; font-weight:normal; }
