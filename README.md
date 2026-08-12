@@ -1,50 +1,67 @@
-# Repetidor Wi-Fi com piCorePlayer + tela TFT (Raspberry Pi 3)
+# Repetidor Wi-Fi com piCorePlayer (Raspberry Pi 3 + Zero W)
 
 [![Status](https://img.shields.io/badge/status-ativo-brightgreen)](https://github.com/m33600/picoreplayer-wifi-repeater)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%203-c51a4a)](https://github.com/m33600/picoreplayer-wifi-repeater)
+[![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%203%20%7C%20Zero%20W-c51a4a)](https://github.com/m33600/picoreplayer-wifi-repeater)
 
 Repositório: [github.com/m33600/picoreplayer-wifi-repeater](https://github.com/m33600/picoreplayer-wifi-repeater)
 
-Receita completa para transformar um Raspberry Pi 3 num repetidor Wi-Fi
-rodando [piCorePlayer](https://www.picoreplayer.org/) (Tiny Core Linux),
-com uma tela TFT SPI mostrando status ao vivo (uplink, AP, clientes
-conectados, sinal, tráfego, uptime).
+Receita completa para transformar um Raspberry Pi num repetidor Wi-Fi
+rodando [piCorePlayer](https://www.picoreplayer.org/) (Tiny Core Linux).
+Duas variantes testadas:
+
+- **Pi 3** — com tela TFT SPI mostrando status ao vivo (uplink, AP,
+  clientes conectados, sinal, tráfego, uptime)
+- **Zero W** — versão mais simples/portátil, sem tela, mesma lógica de
+  repetidor
 
 ![Tela de status do repetidor](docs/tela-status.png)
 
-*Captura exata do frame renderizado por `pcp-status-display.py` (gerada
-chamando a própria função de desenho do script, não uma foto da tela
-física).*
+*Captura exata do frame renderizado por `pcp-status-display.py` no Pi 3
+(gerada chamando a própria função de desenho do script, não uma foto da
+tela física).*
 
-## Validação
+## Ambas as variantes precisam de dois rádios Wi-Fi
 
-Testado em 12/08/2026, depois de todas as mudanças (troca de papéis das
-interfaces incluída):
+Repetidor Wi-Fi "de verdade" (sem cabo) precisa de **dois rádios** — um
+cliente (STA) e um AP — porque não dá pra fazer bridge de camada 2 entre
+duas interfaces Wi-Fi (limitação do formato de frame 802.11). Por isso o
+tráfego passa por **NAT**, não por bridge. Em ambas as placas usamos:
+chip Wi-Fi interno como **AP**, um dongle USB como **uplink**.
 
-- `hostapd`, `dnsmasq`, `wpa_supplicant` e `pcp-status-display.py` rodando
-  havia ~23 minutos sem reiniciar (mesmos PIDs desde o último boot, sem
-  crashes)
-- Cliente real conectado e estável durante todo o período
-- Sem erros nos logs — só eventos normais de conexão/associação
-- Teste de ponta a ponta (gateway do AP → internet via NAT): **0% de
-  perda de pacote**
+**Antes de decidir qual dongle faz qual papel**, confira o suporte real a
+modo AP do driver com `iw phy <phyN> info | grep -A5 "Supported interface
+modes"` — muita placa "genérica" USB só lista `managed`/`monitor` (sem
+`AP`), então só serve pro papel de uplink/cliente. Foi assim que
+descobrimos que o MT7601U não serve como AP (driver mainline `mt7601u`
+nunca implementou modo AP), mas serve perfeitamente como uplink. Também
+já testamos dois dongles Ralink (`rt2800usb`: RT2870 e RT73) como AP —
+ambos tinham bugs reais nesse papel (travava com certos clientes, ou
+beacon no ar sem passar tráfego). O **chip Wi-Fi interno como AP** foi o
+único candidato 100% estável nos nossos testes em ambas as placas.
 
-## Hardware usado
+## Por que não usar o `pcp-apmode` pronto
+
+O piCorePlayer tem uma extensão oficial (`pcp-apmode.tcz`) para modo AP,
+mas o script dela (`/usr/local/bin/pcp-apmode`) vem com `wlan0` e `eth0`
+**fixos no código** — ela assume que o AP é sempre `wlan0` e o uplink é
+sempre `eth0` (cabo). Isso não serve para o cenário de dois rádios Wi-Fi
+(uplink sem fio). Solução usada nas duas variantes: usar os mesmos
+binários que essa extensão traz como dependência (`hostapd`, `dnsmasq`,
+`iptables`) mas com um script próprio (`pcp-repeater-start.sh`).
+
+---
+
+## Variante 1: Raspberry Pi 3 (com tela TFT)
+
+### Hardware
 
 - Raspberry Pi 3 Model B
 - Tela **Waveshare 3.5" RPi LCD (A)** — controlador **ILI9486**, touch **XPT2046**
-- Dongle USB Wi-Fi **MediaTek MT7601U** (só 802.11b/g/n em modo cliente,
-  **sem suporte a AP** — ver nota abaixo) como uplink
-- Wi-Fi interno do Pi 3 (chip Broadcom, driver `brcmfmac`, suporta 802.11n)
-  como AP
+- Dongle USB Wi-Fi **MediaTek MT7601U** (uplink)
+- Wi-Fi interno do Pi 3 (chip Broadcom, driver `brcmfmac`, suporta 802.11n) — AP
 
-> Já testamos dois dongles Ralink (`rt2800usb`: RT2870 e RT73) como AP —
-> ambos tinham bugs reais em modo AP (travava com certos clientes, ou
-> beacon no ar sem passar tráfego). O chip **interno do Pi 3 como AP** foi
-> o único candidato 100% estável nos nossos testes — daí a troca.
-
-## Topologia
+### Topologia
 
 ```
 Rede existente (ex: roteador de casa)
@@ -58,29 +75,7 @@ Rede existente (ex: roteador de casa)
    Dispositivos clientes
 ```
 
-Repetidor Wi-Fi "de verdade" (sem cabo) precisa de **dois rádios** — um
-cliente (STA) e um AP — porque não dá pra fazer bridge de camada 2 entre
-duas interfaces Wi-Fi (limitação do formato de frame 802.11). Por isso o
-tráfego passa por **NAT**, não por bridge.
-
-**Antes de decidir qual dongle faz qual papel**, confira o suporte real a
-modo AP do driver com `iw phy <phyN> info | grep -A5 "Supported interface
-modes"` — muita placa "genérica" USB só lista `managed`/`monitor` (sem
-`AP`), então só serve pro papel de uplink/cliente. Foi assim que
-descobrimos que o MT7601U não serve como AP (driver mainline `mt7601u`
-nunca implementou modo AP), mas serve perfeitamente como uplink.
-
-## Por que não usar o `pcp-apmode` pronto
-
-O piCorePlayer tem uma extensão oficial (`pcp-apmode.tcz`) para modo AP,
-mas o script dela (`/usr/local/bin/pcp-apmode`) vem com `wlan0` e `eth0`
-**fixos no código** — ela assume que o AP é sempre `wlan0` e o uplink é
-sempre `eth0` (cabo). Isso não serve para o cenário de dois rádios Wi-Fi
-(uplink sem fio). Solução: usar os mesmos binários que essa extensão traz
-como dependência (`hostapd`, `dnsmasq`, `iptables`) mas com um script
-próprio (`scripts/pcp-repeater-start.sh`).
-
-## A tela: por que driver em userspace
+### A tela: por que driver em userspace
 
 O overlay de device tree `piscreen` (usado por várias telas TFT SPI,
 inclusive clones da Waveshare 3.5" A) carrega normalmente, mas **não
@@ -101,52 +96,45 @@ Pinout real (lido diretamente do device tree aplicado, `piscreen@0`):
 | Backlight | 22 |
 | Touch IRQ (não usado ainda) | 17 |
 
-## Passo a passo
+### Passo a passo
 
-### 1. Gravar a imagem
-
-Baixe o piCorePlayer (64-bit para Pi 3/4) e grave no cartão SD:
+**1. Gravar a imagem** — piCorePlayer 64-bit (Pi 3/4):
 
 ```sh
 xzcat piCorePlayer-XX.X.X-64Bit.img.xz | sudo dd of=/dev/mmcblkX bs=4M status=progress conv=fsync
 ```
 
-### 2. Configurar a tela (antes ou depois do primeiro boot)
-
-Editar `config.txt` na partição de boot (FAT32) — ver `config/config.txt`
-neste repo para o arquivo completo, o trecho relevante é:
+**2. Configurar a tela** (partição de boot, FAT32) — ver
+`config/pi3/config.txt` para o arquivo completo, trecho relevante:
 
 ```
 dtparam=spi=on
 dtoverlay=piscreen,speed=24000000
 ```
 
-Editar `cmdline.txt` (mesma partição), acrescentando ao final da linha
-única existente:
+Editar `config/pi3/cmdline.txt` (mesma partição), acrescentando ao final
+da linha única existente:
 
 ```
 fbcon=map:10 fbcon=font:VGA8x8
 ```
 
-### 3. Configurar o Wi-Fi de uplink
+**3. Configurar o Wi-Fi de uplink** — copiar
+`config/pi3/wpa_supplicant.conf.example` para `wpa_supplicant.conf` na
+partição de boot, preenchendo `ssid`/`psk` reais.
 
-Copiar `config/wpa_supplicant.conf.example` para `wpa_supplicant.conf` na
-partição de boot, preenchendo `ssid`/`psk` reais. Esse arquivo é
-compartilhado entre interfaces — serve tanto se o uplink for `wlan0`
-quanto `wlan1`.
-
-Se o uplink for num dongle USB (`wlan1`, não o chip interno), é preciso
-também impedir que o piCorePlayer suba `wpa_supplicant` sozinho no
-`wlan0` no boot (ele faz isso incondicionalmente quando `WIFI="on"`).
-Editar `/usr/local/etc/pcp/pcp.cfg`:
+Como o uplink é num dongle USB (`wlan1`, não o chip interno), é preciso
+impedir que o piCorePlayer suba `wpa_supplicant` sozinho no `wlan0` no
+boot (ele faz isso incondicionalmente quando `WIFI="on"`). Editar
+`/usr/local/etc/pcp/pcp.cfg`:
 
 ```
 WIFI="off"
 ```
 
 O uplink em `wlan1` é então iniciado manualmente dentro do
-`scripts/pcp-repeater-start.sh`, reaproveitando o mecanismo genérico do
-próprio piCorePlayer:
+`pcp-repeater-start.sh`, reaproveitando o mecanismo genérico do próprio
+piCorePlayer:
 
 ```sh
 /usr/local/etc/init.d/wifi wlan1 start
@@ -156,14 +144,14 @@ próprio piCorePlayer:
 `wpa_supplicant` + DHCP — só o `pcp_startup.sh` que vem com `wlan0`
 fixo no código).
 
-### 4. Instalar Python e dependências da tela (via SSH, depois do boot)
+**4. Instalar Python e dependências da tela** (via SSH, depois do boot):
 
 ```sh
 tce-load -wi python3.11.tcz python3.11-pip.tcz python3.11-dev.tcz python3.11-rpi-gpio.tcz compiletc.tcz
 python3.11 -m pip install spidev pillow 'pyili9486[lgpio]'
 ```
 
-### 5. Instalar as dependências do repetidor
+**5. Instalar as dependências do repetidor**:
 
 ```sh
 tce-load -wi pcp-apmode.tcz iw.tcz
@@ -171,12 +159,10 @@ tce-load -wi pcp-apmode.tcz iw.tcz
 (isso já traz `hostapd`, `dnsmasq`, `iptables`, `bridge-utils` como
 dependência — não é necessário usar o `pcp-apmode` em si).
 
-### 6. Configurar hostapd/dnsmasq
-
-Editar `/usr/local/etc/pcp/hostapd.conf` e `/usr/local/etc/pcp/dnsmasq.conf`
-conforme `config/hostapd.conf` e `config/dnsmasq.conf` deste repo —
-`interface=wlan0` (AP no chip interno), ajustar SSID/senha. Se o AP for
-no chip interno do Pi 3 (que suporta 802.11n), vale habilitar:
+**6. Configurar hostapd/dnsmasq** — editar
+`/usr/local/etc/pcp/hostapd.conf` e `/usr/local/etc/pcp/dnsmasq.conf`
+conforme `config/pi3/hostapd.conf` e `config/pi3/dnsmasq.conf` — SSID
+no AP (chip interno, que suporta 802.11n), vale habilitar:
 
 ```
 ieee80211n=1
@@ -187,30 +173,158 @@ Se o AP for num dongle sem suporte a "n" (ex: RT73, só b/g), deixar
 `ieee80211n=0` — senão o `hostapd` falha ao subir com
 `Could not set channel for kernel driver`.
 
-### 7. Scripts de inicialização
+**7. Scripts de inicialização** — copiar `scripts/pi3/pcp-repeater-start.sh`
+e `scripts/pi3/pcp-status-display.py` para `/opt/` no Pi (⚠️ **não** usar
+`/usr/local/bin` — no Tiny Core, `/usr/local` é reconstruído do zero a
+cada boot a partir das extensões `.tcz`; só `/opt`, `/home` e alguns
+caminhos específicos de `/usr/local/etc/pcp` sobrevivem via backup).
 
-Copiar `scripts/pcp-repeater-start.sh` e `scripts/pcp-status-display.py`
-para `/opt/` no Pi (⚠️ **não** usar `/usr/local/bin` — no Tiny Core,
-`/usr/local` é reconstruído do zero a cada boot a partir das extensões
-`.tcz`; só `/opt`, `/home` e alguns caminhos específicos de
-`/usr/local/etc/pcp` sobrevivem via backup).
-
-`pcp-repeater-start.sh` já cuida de subir o uplink (`wlan1`, via
-`/usr/local/etc/init.d/wifi wlan1 start`) antes de configurar o AP
-(`wlan0`) e o NAT — ajustar as variáveis `UPLINK`/`APIF` no topo do
-script conforme qual interface faz qual papel no seu caso.
+`pcp-repeater-start.sh` já cuida de subir o uplink (`wlan1`) antes de
+configurar o AP (`wlan0`) e o NAT — ajustar as variáveis
+`UPLINK`/`APIF` no topo conforme qual interface faz qual papel.
 
 Chamar os dois scripts a partir do `/opt/bootlocal.sh` (ver
-`config/bootlocal.sh` para o trecho completo), com espera pela interface
-de uplink existir antes de iniciar o repetidor.
+`config/pi3/bootlocal.sh`), com espera pela interface de uplink existir
+antes de iniciar o repetidor.
 
-### 8. Persistir
+**8. Persistir**:
 
 ```sh
 sudo filetool.sh -b
 ```
 
-## Pegadinhas que valem a pena saber
+### Validação (Pi 3)
+
+Testado em 12/08/2026, depois de todas as mudanças (troca de papéis das
+interfaces incluída):
+
+- `hostapd`, `dnsmasq`, `wpa_supplicant` e `pcp-status-display.py` rodando
+  havia ~23 minutos sem reiniciar (mesmos PIDs desde o último boot, sem
+  crashes)
+- Cliente real conectado e estável durante todo o período
+- Teste de ponta a ponta (gateway do AP → internet via NAT): **0% de
+  perda de pacote**
+
+---
+
+## Variante 2: Raspberry Pi Zero W (sem tela, mais simples)
+
+### Hardware
+
+- Raspberry Pi Zero W
+- Dongle USB Wi-Fi **Ralink RT73** (uplink) — a única porta USB OTG do
+  Zero W fica ocupada com ele
+- Wi-Fi interno do Zero W (mesma família de chip Broadcom, suporta 802.11n) — AP
+
+### Topologia
+
+```
+Rede existente (ex: roteador de casa)
+        |  (Wi-Fi, modo cliente/STA)
+     wlan1 (dongle RT73, na unica porta USB OTG)
+        |
+   [Raspberry Pi Zero W / piCorePlayer]
+        |
+     wlan0 (chip interno, modo AP via hostapd)
+        |  (Wi-Fi, SSID do repetidor)
+   Dispositivos clientes
+```
+
+### Diferenças importantes em relação ao Pi 3
+
+- **Sem tela** — essa variante não inclui a parte de driver/tela TFT.
+- **Imagem 32-bit, não 64-bit** — o Zero W é ARMv6 (mesma família do Pi 1
+  original). A imagem 64-bit do piCorePlayer **não** suporta Pi Zero
+  (`# RPi PI0-1-2 are not supported on this image` no `config.txt` da
+  imagem 64-bit). Baixar a versão 32-bit.
+- **Só uma porta USB (OTG)** — não tem folga de hardware para múltiplos
+  dongles sem um hub USB.
+- Hardware mais fraco (single-core ARM11 ~1GHz, 512MB RAM) — o repetidor
+  funciona bem, mas com latência mais alta que o Pi 3.
+
+### Passo a passo
+
+O processo é o mesmo do Pi 3, sem a parte da tela (pular passos 2 e 4):
+
+**1. Gravar a imagem 32-bit**:
+
+```sh
+xzcat piCorePlayer-XX.X.X.img.xz | sudo dd of=/dev/mmcblkX bs=4M status=progress conv=fsync
+```
+
+**2. Configurar o Wi-Fi de uplink** — mesmo processo do Pi 3, copiar
+`config/zero-w/wpa_supplicant.conf.example` para `wpa_supplicant.conf`
+na partição de boot.
+
+**3. Instalar as dependências do repetidor**:
+
+```sh
+tce-load -wi pcp-apmode.tcz iw.tcz
+```
+
+**4. Configurar hostapd/dnsmasq** — conforme `config/zero-w/hostapd.conf`
+e `config/zero-w/dnsmasq.conf` deste repo (mesma lógica do Pi 3:
+`interface=wlan0` pro AP no chip interno, `ieee80211n=1` +
+`ht_capab=[HT40][SHORT-GI-20][DSSS_CCK-40]` já que o chip interno do
+Zero W também suporta 802.11n).
+
+**5. Scripts de inicialização** — copiar
+`scripts/zero-w/pcp-repeater-start.sh` para `/opt/` e chamar a partir do
+`/opt/bootlocal.sh` (ver `config/zero-w/bootlocal.sh`). Mesmas variáveis
+`UPLINK=wlan1` / `APIF=wlan0`.
+
+**6. Persistir**:
+
+```sh
+sudo filetool.sh -b
+```
+
+### Pegadinha específica do Zero W: placa detectada como modelo errado
+
+Numa das placas testadas, o Wi-Fi interno simplesmente não aparecia como
+interface de rede — nem em `ifconfig -a`, nem em `lsmod`. Diagnóstico:
+
+```sh
+cat /proc/device-tree/model
+# → "Raspberry Pi Model B Rev 2"  (era pra ser "Raspberry Pi Zero W")
+```
+
+O firmware estava detectando a placa errado e carregando o device tree
+do Model B original (2012), que genuinamente não tem nó de Wi-Fi. Testamos
+forçar o device tree certo:
+
+```
+# primeira linha do config.txt
+device_tree=bcm2708-rpi-zero-w.dtb
+```
+
+Isso corrigiu o device tree (o nó SDIO do Wi-Fi passou a existir), mas o
+Wi-Fi *ainda* não funcionava — o log mostrava:
+
+```
+mmc1: Failed to initialize a non-removable card
+```
+
+Esse é o barramento SDIO que conecta ao chip de Wi-Fi. A conclusão foi
+**defeito real de hardware nessa placa específica** (chip Wi-Fi morto ou
+solda com problema — a placa era de 2017), não algo corrigível por
+software. Trocamos para outra unidade Zero W e funcionou de primeira,
+com `/proc/device-tree/model` mostrando corretamente "Raspberry Pi Zero W
+Rev 1.1". Vale testar isso **antes** de gastar tempo depurando
+configuração, se uma placa Zero W não mostrar a interface Wi-Fi interna.
+
+### Validação (Zero W)
+
+Testado em 12/08/2026, sobrevivendo a dois reboots completos:
+
+- `hostapd`, `dnsmasq` e `wpa_supplicant` sobem sozinhos no boot
+- Teste de ponta a ponta (gateway do AP → internet via NAT): **0% de
+  perda de pacote** (latência mais alta que o Pi 3, ~100-700ms —
+  esperado pelo hardware mais fraco)
+
+---
+
+## Pegadinhas gerais (ambas as placas)
 
 - **PATH em sessão SSH não-interativa não inclui `/usr/local/sbin` nem
   `/usr/local/bin`** — `iptables`, `iw`, `iwconfig` etc. dão "not found"
@@ -237,6 +351,9 @@ sudo filetool.sh -b
   vez com um único reboot controlado no final. Se algo não foi
   persistido ainda (`filetool.sh -b`), um religamento de energia volta
   pro último estado salvo — rede de segurança de graça.
+- **Board detectada como modelo errado** (Zero W → "Model B Rev 2"):
+  ver seção específica acima. Vale checar `cat /proc/device-tree/model`
+  logo de cara se uma interface de rede esperada não aparecer.
 
 ## Créditos
 

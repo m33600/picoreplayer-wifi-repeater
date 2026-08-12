@@ -1,0 +1,16 @@
+# piCorePlayer wifi configuration (uplink/STA)
+# Salvar como wpa_supplicant.conf na particao de boot (FAT32) do cartao,
+# antes do primeiro boot ou remontando a particao depois.
+ctrl_interface=/var/run/wpa_supplicant
+ctrl_interface_group=staff
+
+country=BR
+
+update_config=1
+
+network={
+        ssid="SEU_SSID_AQUI"
+        psk="SUA_SENHA_AQUI"
+        key_mgmt=WPA-PSK
+        auth_alg=OPEN
+}
