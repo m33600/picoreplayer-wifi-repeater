@@ -279,6 +279,45 @@ Zero W também suporta 802.11n).
 sudo filetool.sh -b
 ```
 
+### Dashboard web de status (já que não tem tela)
+
+Como o Zero W não tem TFT, o painel de status vira uma página web em vez
+de desenho em framebuffer. Em vez de instalar Python (mais pesado pro
+hardware fraco), é um **script CGI em shell puro**
+(`scripts/zero-w/pcp-status.cgi`) rodando no próprio `httpd` que o
+piCorePlayer já usa — sem processo/porta extra.
+
+Mostra:
+- Uplink: SSID, IP, barra de sinal colorida + dBm, velocidade de link (RX/TX)
+- AP: SSID e IP
+- **Clientes conectados agora** (não leases DHCP antigas — a lista parte
+  de `hostapd_cli all_sta`, que só lista quem está de fato associado no
+  momento, e usa `dnsmasq.leases` só pra enriquecer com nome/IP)
+- **Alerta vermelho no topo se a internet cair** (ping periódico ao
+  8.8.8.8 a cada carregamento da página)
+- Uptime no rodapé
+- Atualiza sozinha a cada 10s (`<meta http-equiv="refresh">`)
+
+Instalação:
+
+```sh
+sudo cp pcp-status.cgi /opt/pcp-status.cgi
+sudo chmod +x /opt/pcp-status.cgi
+sudo ln -sf /opt/pcp-status.cgi /var/www/cgi-bin/status.cgi
+```
+
+`/var/www` não é persistido entre boots no Tiny Core (só `/opt`, `/home`
+e alguns caminhos específicos de `/usr/local/etc/pcp`), então o symlink
+precisa ser recriado a cada boot — por isso ele está no
+`config/zero-w/bootlocal.sh` deste repo, não só criado uma vez na mão.
+
+Acesse em `http://<ip-do-repetidor>/cgi-bin/status.cgi`.
+
+> Nota: o driver `rt2800usb` do dongle RT73 não reporta sinal (RSSI) por
+> cliente individual via `hostapd_cli` (sempre retorna `signal=0`) — a
+> página trata isso como indisponível (`--`) em vez de mostrar um valor
+> enganoso. O sinal do **uplink** (via `iw`) funciona normalmente.
+
 ### Pegadinha específica do Zero W: placa detectada como modelo errado
 
 Numa das placas testadas, o Wi-Fi interno simplesmente não aparecia como

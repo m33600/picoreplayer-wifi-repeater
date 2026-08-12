@@ -20,3 +20,6 @@ echo "${GREEN}Running bootlocal.sh..."
   sleep 2
   /opt/pcp-repeater-start.sh >> /var/log/pcp_repeater.log 2>&1
 ) &
+
+# Pagina web de status (CGI)
+ln -sf /opt/pcp-status.cgi /var/www/cgi-bin/status.cgi
