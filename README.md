@@ -322,6 +322,14 @@ Testado em 12/08/2026, sobrevivendo a dois reboots completos:
   perda de pacote** (latência mais alta que o Pi 3, ~100-700ms —
   esperado pelo hardware mais fraco)
 
+Checagem de estabilidade em separado, depois de ~82 minutos rodando:
+
+- `hostapd`, `dnsmasq` e `wpa_supplicant` com os mesmos PIDs desde o
+  setup — nenhum reiniciou sozinho
+- IP do uplink mudou (reatribuição normal de DHCP do roteador de casa) —
+  não afeta o repetidor, só o endereço usado pra alcançá-lo por SSH
+- Novo teste de ponta a ponta: **0% de perda de pacote** de novo
+
 ---
 
 ## Pegadinhas gerais (ambas as placas)
