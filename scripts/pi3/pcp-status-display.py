@@ -45,7 +45,12 @@ def get_ip(iface):
     m = re.search(r'inet addr:([0-9.]+)', out)
     return m.group(1) if m else '---'
 
+def uplink_is_cable():
+    return get_ip('eth0') != '---' and get_ip('wlan1') == '---'
+
 def get_uplink_ssid_signal():
+    if uplink_is_cable():
+        return 'Cabo (eth0)', None
     out = sh(f'{IW} dev wlan1 link')
     ssid_m = re.search(r'SSID:\s*(.+)', out)
     sig_m = re.search(r'signal:\s*(-?\d+)\s*dBm', out)
@@ -153,7 +158,7 @@ def build_frame(width, height, font, font_sm, font_b):
     dbm_txt = f'{uplink_dbm}dB' if uplink_dbm is not None else '--'
     d.text((BAR_X + BAR_W + 6, y), dbm_txt, font=font_sm, fill=(200,200,200))
     y += 17
-    d.text((45, y), get_ip('wlan1'), font=font_sm, fill=(150,150,150)); y += 18
+    d.text((45, y), get_ip('eth0' if uplink_is_cable() else 'wlan1'), font=font_sm, fill=(150,150,150)); y += 18
 
     d.text((10, y), 'AP:', font=font_b, fill=(120,255,150))
     ap_ssid_txt = fit_text(d, font, 'RepetidorPicorePlayer', 190)

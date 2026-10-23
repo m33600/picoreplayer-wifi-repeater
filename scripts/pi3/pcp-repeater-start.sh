@@ -3,12 +3,18 @@ export PATH=/usr/local/sbin:/usr/local/bin:$PATH
 WIFI_IP=10.10.10.1
 HOSTAPDCONF=/usr/local/etc/pcp/hostapd.conf
 DNSMASQCONF=/usr/local/etc/pcp/dnsmasq.conf
-UPLINK=wlan1
 APIF=wlan0
 
-# Sobe o uplink (STA) usando o mecanismo nativo do piCorePlayer,
+# Uplink: cabo (eth0) se tiver IP; senao o dongle Wi-Fi (wlan1).
+UPLINK=wlan1
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if ifconfig eth0 2>/dev/null | grep -q 'inet addr:'; then UPLINK=eth0; break; fi
+  sleep 2
+done
+
+# Sobe o uplink Wi-Fi (STA) usando o mecanismo nativo do piCorePlayer,
 # que ja usa /usr/local/etc/pcp/wpa_supplicant.conf e cuida do DHCP.
-/usr/local/etc/init.d/wifi $UPLINK start
+[ "$UPLINK" = wlan1 ] && /usr/local/etc/init.d/wifi $UPLINK start
 
 mkdir -p /usr/local/etc/pcp
 mkdir -p /var/lib/misc
